@@ -1,0 +1,1 @@
+/home/mao/link_workspace/kernel/scripts/gdb/vmlinux-gdb.py
