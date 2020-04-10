@@ -22,7 +22,16 @@ void main(void){
 	int connectSocket = socket(AF_INET6, SOCK_STREAM, 0);
 	int connectRet = connect(connectSocket, (struct sockaddr*)peerSockaddr, sizeof(struct sockaddr_in6));
 
-	char * html = "<html><body>Beijing Tower 118.5</body></html>";
+	unsigned char hbh[] = {
+			0x00, 0x01, 0x03, 0x0c,
+			0xaa, 0xaa, 0x08, 0x10,
+			0x00, 0x00, 0xaa, 0xaa,
+			0x00, 0x52, 0x27, 0x03,
+	};
+	int rettt = setsockopt(connectSocket, IPPROTO_IPV6, IPV6_HOPOPTS, hbh, 16);
+	printf("Mao setsockopt %d %d", rettt, errno);
+
+	char * html = "..........contact Beijing Tower on 118.5, good day!";
 	while(0 == errno) {
 		int sendRet = send(connectSocket, html, strlen(html), 0);
 		printf("send html %d\n", sendRet);
