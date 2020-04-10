@@ -163,6 +163,9 @@ int ip6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 	struct net_device *dev = skb_dst(skb)->dev, *indev = skb->dev;
 	struct inet6_dev *idev = ip6_dst_idev(skb_dst(skb));
 
+	WARN_ON(1);
+	pr_info("Mao: ip6_output is here~\n");
+
 	skb->protocol = htons(ETH_P_IPV6);
 	skb->dev = dev;
 
@@ -224,6 +227,7 @@ int ip6_xmit(const struct sock *sk, struct sk_buff *skb, struct flowi6 *fl6,
 		skb = skb2;
 	}
 
+	pr_info("Mao: ip6_xmit is here~\n");
 	if (opt) {
 		seg_len += opt->opt_nflen + opt->opt_flen;
 
@@ -1726,6 +1730,8 @@ struct sk_buff *__ip6_make_skb(struct sock *sk,
 	struct flowi6 *fl6 = &cork->fl.u.ip6;
 	unsigned char proto = fl6->flowi6_proto;
 
+	pr_info("Mao: __ip6_make_skb");
+
 	skb = __skb_dequeue(queue);
 	if (!skb)
 		goto out;
@@ -1750,6 +1756,12 @@ struct sk_buff *__ip6_make_skb(struct sock *sk,
 
 	*final_dst = fl6->daddr;
 	__skb_pull(skb, skb_network_header_len(skb));
+
+	WARN_ON(1);
+	pr_info("Mao: __ip6_make_skb opt: %d", opt);
+	if (opt)
+		pr_info("Mao: __ip6_make_skb opt_flen: %d, opt_nflen %d", opt->opt_flen, opt->opt_nflen);
+
 	if (opt && opt->opt_flen)
 		ipv6_push_frag_opts(skb, opt, &proto);
 	if (opt && opt->opt_nflen)
