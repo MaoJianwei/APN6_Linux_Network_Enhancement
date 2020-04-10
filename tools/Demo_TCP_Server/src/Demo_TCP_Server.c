@@ -9,15 +9,16 @@
 
 void main(void) {
 
-	int listenSocket = socket(AF_INET, SOCK_STREAM, 0);
+	int listenSocket = socket(AF_INET6, SOCK_STREAM, 0);
 
-	struct sockaddr_in * listenAddr = (struct sockaddr_in *) calloc(1, sizeof(struct sockaddr_in));
+	struct sockaddr_in6 * listenAddr = (struct sockaddr_in6 *) calloc(1, sizeof(struct sockaddr_in6));
 
-	listenAddr->sin_family = AF_INET;
-	listenAddr->sin_port = htons(5511);
-	listenAddr->sin_addr.s_addr = htonl(INADDR_ANY);
+	listenAddr->sin6_family = AF_INET6;
+	listenAddr->sin6_port = htons(5511);
+	memset(listenAddr->sin6_addr.s6_addr, 0, 16);
+	//listenAddr->sin6_addr.s6_addr = in6addr_any;
 
-	int bindRet = bind(listenSocket, (struct sockaddr*) listenAddr, sizeof(struct sockaddr_in));
+	int bindRet = bind(listenSocket, (struct sockaddr*) listenAddr, sizeof(struct sockaddr_in6));
 
 	printf("start listen\n");
 
