@@ -297,4 +297,8 @@ struct in6_flowlabel_req {
  * ...
  * MRT6_MAX
  */
+
+/* APN6: Application-aware IPv6 Network */
+#define IPV6_APN6ID		0x20150810
+
 #endif /* _UAPI_LINUX_IN6_H */

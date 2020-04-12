@@ -136,6 +136,47 @@ static bool setsockopt_needs_rtnl(int optname)
 	return false;
 }
 
+static ipv6_opt_hdr * mao_gen_apn6_hopopts(char __user *optval, unsigned int optlen)
+{
+	char * apn6_hbh;
+	int sla, app_id, user_id;
+
+	if (optlen < (sizeof(int) * 3))
+		return NULL;
+	else if (!optval)
+		return NULL;
+	else {
+		if (get_user(sla, ((int __user *) optval)) ||
+			get_user(app_id, ((int __user *) optval) + 1) ||
+			get_user(user_id, ((int __user *) optval) + 2))
+			return PTR_ERR(-EFAULT);
+
+		pr_info("Mao: get APN6, SLA:%d AppID:%d UserID:%d", sla, app_id, user_id);
+
+		hbh = kzalloc(16, GFP_KERNEL);
+		hbh[1] = 0x01; hbh[2] = 0x03; hbh[3] = 0x0C;
+
+		sla = htonl(sla);
+		app_id = htonl(app_id);
+		user_id = htonl(user_id);
+		memcpy(hbh + 4, &sla, 4);
+		memcpy(hbh + 8, &app_id, 4);
+		memcpy(hbh + 12, &user_id, 4);
+
+		pr_info("Mao: hbh\n"
+				"%02X %02X %02X %02X\n"
+				"%02X %02X %02X %02X\n"
+				"%02X %02X %02X %02X\n"
+				"%02X %02X %02X %02X\n",
+				hbh[0], hbh[1], hbh[2], hbh[3],
+				hbh[4], hbh[5], hbh[6], hbh[7],
+				hbh[8], hbh[9], hbh[10], hbh[11],
+				hbh[12], hbh[13], hbh[14], hbh[15]);
+
+		return hbh;
+	}
+}
+
 static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
 		    char __user *optval, unsigned int optlen)
 {
@@ -400,34 +441,49 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
 	case IPV6_RTHDRDSTOPTS:
 	case IPV6_RTHDR:
 	case IPV6_DSTOPTS:
+	case IPV6_APN6ID:
 	{
 		struct ipv6_txoptions *opt;
 		struct ipv6_opt_hdr *new = NULL;
 
 		/* hop-by-hop / destination options are privileged option */
 		retv = -EPERM;
-		if (optname != IPV6_RTHDR && !ns_capable(net->user_ns, CAP_NET_RAW))
+		if (optname != IPV6_APN6ID && optname != IPV6_RTHDR &&
+				!ns_capable(net->user_ns, CAP_NET_RAW)) {
+			pr_info("Mao: kernel, setsockopt HBH no permission.");
 			break;
+		}
 
-		/* remove any sticky options header with a zero option
-		 * length, per RFC3542.
-		 */
-		if (optlen == 0)
-			optval = NULL;
-		else if (!optval)
-			goto e_inval;
-		else if (optlen < sizeof(struct ipv6_opt_hdr) ||
-			 optlen & 0x7 || optlen > 8 * 255)
-			goto e_inval;
-		else {
-			new = memdup_user(optval, optlen);
+
+		if (optname == IPV6_APN6ID) {
+			new = mao_gen_apn6_hopopts(optval, optlen);
 			if (IS_ERR(new)) {
 				retv = PTR_ERR(new);
+				pr_info("Mao: fail from mao_gen_apn6_hopopts, %d", retv);
 				break;
 			}
-			if (unlikely(ipv6_optlen(new) > optlen)) {
-				kfree(new);
+			optname = IPV6_HOPOPTS; // Mao: next is same as IPV6_HOPOPTS procedure
+		} else {
+			/* remove any sticky options header with a zero option
+			 * length, per RFC3542.
+			 */
+			if (optlen == 0)
+				optval = NULL;
+			else if (!optval)
 				goto e_inval;
+			else if (optlen < sizeof(struct ipv6_opt_hdr) ||
+				 optlen & 0x7 || optlen > 8 * 255)
+				goto e_inval;
+			else {
+				new = memdup_user(optval, optlen);
+				if (IS_ERR(new)) {
+					retv = PTR_ERR(new);
+					break;
+				}
+				if (unlikely(ipv6_optlen(new) > optlen)) {
+					kfree(new);
+					goto e_inval;
+				}
 			}
 		}
 
