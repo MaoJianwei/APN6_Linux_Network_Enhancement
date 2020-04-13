@@ -136,9 +136,9 @@ static bool setsockopt_needs_rtnl(int optname)
 	return false;
 }
 
-static ipv6_opt_hdr * mao_gen_apn6_hopopts(char __user *optval, unsigned int optlen)
+static struct ipv6_opt_hdr * mao_gen_apn6_hopopts(char __user *optval, unsigned int optlen)
 {
-	char * apn6_hbh;
+	char * hbh;
 	int sla, app_id, user_id;
 
 	if (optlen < (sizeof(int) * 3))
