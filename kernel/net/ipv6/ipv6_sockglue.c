@@ -136,9 +136,17 @@ static bool setsockopt_needs_rtnl(int optname)
 	return false;
 }
 
-static struct ipv6_opt_hdr * mao_gen_apn6_hopopts(char __user *optval, unsigned int optlen)
+
+#define APN6_HBH_LEN 16
+#define APN6_OPTION_TYPE 0x03
+#define APN6_OPTION_LEN (APN6_HBH_LEN - 4)
+#define APN6_SLA_SIZE 4
+#define APN6_APPID_SIZE 4
+#define APN6_USERID_SIZE 4
+/* Return APN6 HBH extension header */
+static void * mao_gen_apn6_hopopts(char __user *optval, unsigned int optlen)
 {
-	char * hbh;
+	unsigned char * hbh;
 	int sla, app_id, user_id;
 
 	if (optlen < (sizeof(int) * 3))
@@ -149,19 +157,21 @@ static struct ipv6_opt_hdr * mao_gen_apn6_hopopts(char __user *optval, unsigned 
 		if (get_user(sla, ((int __user *) optval)) ||
 			get_user(app_id, ((int __user *) optval) + 1) ||
 			get_user(user_id, ((int __user *) optval) + 2))
-			return PTR_ERR(-EFAULT);
+			return ERR_PTR(-EFAULT);
 
 		pr_info("Mao: get APN6, SLA:%d AppID:%d UserID:%d", sla, app_id, user_id);
 
-		hbh = kzalloc(16, GFP_KERNEL);
-		hbh[1] = 0x01; hbh[2] = 0x03; hbh[3] = 0x0C;
+		hbh = kzalloc(APN6_HBH_LEN, GFP_KERNEL);
+		hbh[1] = (APN6_HBH_LEN >> 3) - 1;
+		hbh[2] = APN6_OPTION_TYPE;
+		hbh[3] = APN6_OPTION_LEN;
 
 		sla = htonl(sla);
 		app_id = htonl(app_id);
 		user_id = htonl(user_id);
-		memcpy(hbh + 4, &sla, 4);
-		memcpy(hbh + 8, &app_id, 4);
-		memcpy(hbh + 12, &user_id, 4);
+		memcpy(hbh + 4, &sla, APN6_SLA_SIZE);
+		memcpy(hbh + 4 + APN6_SLA_SIZE, &app_id, APN6_APPID_SIZE);
+		memcpy(hbh + 4 + APN6_SLA_SIZE + APN6_APPID_SIZE, &user_id, APN6_USERID_SIZE);
 
 		pr_info("Mao: hbh\n"
 				"%02X %02X %02X %02X\n"
@@ -454,6 +464,8 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
 			break;
 		}
 
+                WARN_ON(1);
+                pr_info("Mao: TRACK in setsockopt !!!!!!");
 
 		if (optname == IPV6_APN6ID) {
 			new = mao_gen_apn6_hopopts(optval, optlen);

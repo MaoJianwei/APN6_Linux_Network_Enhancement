@@ -163,7 +163,7 @@ int ip6_output(struct net *net, struct sock *sk, struct sk_buff *skb)
 	struct net_device *dev = skb_dst(skb)->dev, *indev = skb->dev;
 	struct inet6_dev *idev = ip6_dst_idev(skb_dst(skb));
 
-	WARN_ON(1);
+	//WARN_ON(1);
 	pr_info("Mao: ip6_output is here~\n");
 
 	skb->protocol = htons(ETH_P_IPV6);
@@ -1757,7 +1757,7 @@ struct sk_buff *__ip6_make_skb(struct sock *sk,
 	*final_dst = fl6->daddr;
 	__skb_pull(skb, skb_network_header_len(skb));
 
-	WARN_ON(1);
+	//WARN_ON(1);
 	pr_info("Mao: __ip6_make_skb opt: %d", opt);
 	if (opt)
 		pr_info("Mao: __ip6_make_skb opt_flen: %d, opt_nflen %d", opt->opt_flen, opt->opt_nflen);
