@@ -299,6 +299,6 @@ struct in6_flowlabel_req {
  */
 
 /* APN6: Application-aware IPv6 Network */
-#define IPV6_APN6ID		0x20150810
+#define IPV6_APN6		81
 
 #endif /* _UAPI_LINUX_IN6_H */

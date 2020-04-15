@@ -159,7 +159,7 @@ static void * mao_gen_apn6_hopopts(char __user *optval, unsigned int optlen)
 			get_user(user_id, ((int __user *) optval) + 2))
 			return ERR_PTR(-EFAULT);
 
-		pr_info("Mao: get APN6, SLA:%08X AppID:%08X UserID:%08X", sla, app_id, user_id);
+		pr_info("Get APN6 info: SLA:%08X AppID:%08X UserID:%08X", sla, app_id, user_id);
 
 		hbh = kzalloc(APN6_HBH_LEN, GFP_KERNEL);
 		hbh[1] = (APN6_HBH_LEN >> 3) - 1;
@@ -173,7 +173,7 @@ static void * mao_gen_apn6_hopopts(char __user *optval, unsigned int optlen)
 		memcpy(hbh + 4 + APN6_SLA_SIZE, &app_id, APN6_APPID_SIZE);
 		memcpy(hbh + 4 + APN6_SLA_SIZE + APN6_APPID_SIZE, &user_id, APN6_USERID_SIZE);
 
-		pr_info("Mao: hbh\n"
+		pr_info("APN6 Hop-by-Hop:\n"
 				"%02X %02X %02X %02X\n"
 				"%02X %02X %02X %02X\n"
 				"%02X %02X %02X %02X\n"
@@ -451,18 +451,18 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
 	case IPV6_RTHDRDSTOPTS:
 	case IPV6_RTHDR:
 	case IPV6_DSTOPTS:
-	case IPV6_APN6ID:
+	case IPV6_APN6:
 	{
 		struct ipv6_txoptions *opt;
 		struct ipv6_opt_hdr *new = NULL;
 
 		/* hop-by-hop / destination options are privileged option */
 		retv = -EPERM;
-		if (optname != IPV6_APN6ID && optname != IPV6_RTHDR &&
+		if (optname != IPV6_APN6 && optname != IPV6_RTHDR &&
 				!ns_capable(net->user_ns, CAP_NET_RAW))
 			break;
 
-		if (optname == IPV6_APN6ID) {
+		if (optname == IPV6_APN6) {
 			new = mao_gen_apn6_hopopts(optval, optlen);
 			if (IS_ERR(new)) {
 				retv = PTR_ERR(new);
