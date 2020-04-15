@@ -159,7 +159,7 @@ static void * mao_gen_apn6_hopopts(char __user *optval, unsigned int optlen)
 			get_user(user_id, ((int __user *) optval) + 2))
 			return ERR_PTR(-EFAULT);
 
-		pr_info("Mao: get APN6, SLA:%d AppID:%d UserID:%d", sla, app_id, user_id);
+		pr_info("Mao: get APN6, SLA:%08X AppID:%08X UserID:%08X", sla, app_id, user_id);
 
 		hbh = kzalloc(APN6_HBH_LEN, GFP_KERNEL);
 		hbh[1] = (APN6_HBH_LEN >> 3) - 1;
@@ -459,13 +459,8 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
 		/* hop-by-hop / destination options are privileged option */
 		retv = -EPERM;
 		if (optname != IPV6_APN6ID && optname != IPV6_RTHDR &&
-				!ns_capable(net->user_ns, CAP_NET_RAW)) {
-			pr_info("Mao: kernel, setsockopt HBH no permission.");
+				!ns_capable(net->user_ns, CAP_NET_RAW))
 			break;
-		}
-
-                WARN_ON(1);
-                pr_info("Mao: TRACK in setsockopt !!!!!!");
 
 		if (optname == IPV6_APN6ID) {
 			new = mao_gen_apn6_hopopts(optval, optlen);
