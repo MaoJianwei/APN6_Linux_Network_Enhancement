@@ -136,55 +136,59 @@ static bool setsockopt_needs_rtnl(int optname)
 	return false;
 }
 
-
 #define APN6_HBH_LEN 16
+#define APN6_HBH_HDR_LEN 4
 #define APN6_OPTION_TYPE 0x03
-#define APN6_OPTION_LEN (APN6_HBH_LEN - 4)
+#define APN6_OPTION_LEN (APN6_HBH_LEN - APN6_HBH_HDR_LEN)
 #define APN6_SLA_SIZE 4
 #define APN6_APPID_SIZE 4
 #define APN6_USERID_SIZE 4
-/* Return APN6 HBH extension header */
-static void * mao_gen_apn6_hopopts(char __user *optval, unsigned int optlen)
+/* Return APN6 Hop-by-Hop(HBH) extension header */
+static void *generate_apn6_hopopts(char __user *optval, unsigned int optlen)
 {
-	unsigned char * hbh;
-	int sla, app_id, user_id;
+	unsigned char *hbh;
+	unsigned int sla, app_id, user_id;
 
-	if (optlen < (sizeof(int) * 3))
+	if (optlen < (sizeof(unsigned int) * 3))
 		return NULL;
 	else if (!optval)
 		return NULL;
-	else {
-		if (get_user(sla, ((int __user *) optval)) ||
-			get_user(app_id, ((int __user *) optval) + 1) ||
-			get_user(user_id, ((int __user *) optval) + 2))
-			return ERR_PTR(-EFAULT);
 
-		pr_info("Get APN6 info: SLA:%08X AppID:%08X UserID:%08X", sla, app_id, user_id);
+	if (get_user(sla, ((unsigned int __user *)optval)) ||
+	    get_user(app_id, ((unsigned int __user *)optval) + 1) ||
+	    get_user(user_id, ((unsigned int __user *)optval) + 2))
+		return ERR_PTR(-EFAULT);
 
-		hbh = kzalloc(APN6_HBH_LEN, GFP_KERNEL);
-		hbh[1] = (APN6_HBH_LEN >> 3) - 1;
-		hbh[2] = APN6_OPTION_TYPE;
-		hbh[3] = APN6_OPTION_LEN;
+	pr_info("APN6: Get info: SLA:%08X AppID:%08X UserID:%08X",
+		    sla, app_id, user_id);
 
-		sla = htonl(sla);
-		app_id = htonl(app_id);
-		user_id = htonl(user_id);
-		memcpy(hbh + 4, &sla, APN6_SLA_SIZE);
-		memcpy(hbh + 4 + APN6_SLA_SIZE, &app_id, APN6_APPID_SIZE);
-		memcpy(hbh + 4 + APN6_SLA_SIZE + APN6_APPID_SIZE, &user_id, APN6_USERID_SIZE);
+	hbh = kzalloc(APN6_HBH_LEN, GFP_KERNEL);
+	// hbh[0] is 0x0 now, and will be set natively when sending packets.
+	hbh[1] = (APN6_HBH_LEN >> 3) - 1;
+	hbh[2] = APN6_OPTION_TYPE;
+	hbh[3] = APN6_OPTION_LEN;
 
-		pr_info("APN6 Hop-by-Hop:\n"
-				"%02X %02X %02X %02X\n"
-				"%02X %02X %02X %02X\n"
-				"%02X %02X %02X %02X\n"
-				"%02X %02X %02X %02X\n",
-				hbh[0], hbh[1], hbh[2], hbh[3],
-				hbh[4], hbh[5], hbh[6], hbh[7],
-				hbh[8], hbh[9], hbh[10], hbh[11],
-				hbh[12], hbh[13], hbh[14], hbh[15]);
+	sla = htonl(sla);
+	app_id = htonl(app_id);
+	user_id = htonl(user_id);
+	memcpy(hbh + APN6_HBH_HDR_LEN,
+	       &sla, APN6_SLA_SIZE);
+	memcpy(hbh + APN6_HBH_HDR_LEN + APN6_SLA_SIZE,
+	       &app_id, APN6_APPID_SIZE);
+	memcpy(hbh + APN6_HBH_HDR_LEN + APN6_SLA_SIZE + APN6_APPID_SIZE,
+	       &user_id, APN6_USERID_SIZE);
 
-		return hbh;
-	}
+	pr_info("APN6: Generate APN6 Hop-by-Hop extension header:\n"
+			"%02X %02X %02X %02X\n"
+			"%02X %02X %02X %02X\n"
+			"%02X %02X %02X %02X\n"
+			"%02X %02X %02X %02X",
+			hbh[0], hbh[1], hbh[2], hbh[3],
+			hbh[4], hbh[5], hbh[6], hbh[7],
+			hbh[8], hbh[9], hbh[10], hbh[11],
+			hbh[12], hbh[13], hbh[14], hbh[15]);
+
+	return hbh;
 }
 
 static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
@@ -459,17 +463,19 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
 		/* hop-by-hop / destination options are privileged option */
 		retv = -EPERM;
 		if (optname != IPV6_APN6 && optname != IPV6_RTHDR &&
-				!ns_capable(net->user_ns, CAP_NET_RAW))
+		    !ns_capable(net->user_ns, CAP_NET_RAW))
 			break;
 
 		if (optname == IPV6_APN6) {
-			new = mao_gen_apn6_hopopts(optval, optlen);
+			new = generate_apn6_hopopts(optval, optlen);
 			if (IS_ERR(new)) {
 				retv = PTR_ERR(new);
-				pr_info("Mao: fail from mao_gen_apn6_hopopts, %d", retv);
+				pr_warn("APN6: Fail when generate HBH, %d", retv);
 				break;
 			}
-			optname = IPV6_HOPOPTS; // Mao: next is same as IPV6_HOPOPTS procedure
+			// next steps are same as IPV6_HOPOPTS procedure,
+			// so we can reuse it.
+			optname = IPV6_HOPOPTS;
 		} else {
 			/* remove any sticky options header with a zero option
 			 * length, per RFC3542.
@@ -479,7 +485,7 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
 			else if (!optval)
 				goto e_inval;
 			else if (optlen < sizeof(struct ipv6_opt_hdr) ||
-				 optlen & 0x7 || optlen > 8 * 255)
+				     optlen & 0x7 || optlen > 8 * 255)
 				goto e_inval;
 			else {
 				new = memdup_user(optval, optlen);
