@@ -1,0 +1,5 @@
+https://www.kernel.org/doc/html/latest/networking/netdev-FAQ.html#q-what-is-netdev
+
+all network-related Linux development (i.e. RFC, review, comments, etc.) takes place on netdev.
+
+There are always two trees (git repositories) in play. Both are driven by David Miller, the main network maintainer.
