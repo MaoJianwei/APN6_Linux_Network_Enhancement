@@ -171,10 +171,8 @@ static void *generate_apn6_hopopts(char __user *optval, unsigned int optlen)
 	sla = htonl(sla);
 	app_id = htonl(app_id);
 	user_id = htonl(user_id);
-	memcpy(hbh + APN6_HBH_HDR_LEN,
-	       &sla, APN6_SLA_SIZE);
-	memcpy(hbh + APN6_HBH_HDR_LEN + APN6_SLA_SIZE,
-	       &app_id, APN6_APPID_SIZE);
+	memcpy(hbh + APN6_HBH_HDR_LEN, &sla, APN6_SLA_SIZE);
+	memcpy(hbh + APN6_HBH_HDR_LEN + APN6_SLA_SIZE, &app_id, APN6_APPID_SIZE);
 	memcpy(hbh + APN6_HBH_HDR_LEN + APN6_SLA_SIZE + APN6_APPID_SIZE,
 	       &user_id, APN6_USERID_SIZE);
 
