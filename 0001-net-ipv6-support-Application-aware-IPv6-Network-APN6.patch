@@ -1,7 +1,8 @@
 From c0ec77c11244ab8bb5a177df6b298b881787b1d0 Mon Sep 17 00:00:00 2001
 From: Jianwei Mao <mao-linux@maojianwei.com>
 Date: Sun, 19 Apr 2020 09:07:05 +0800
-Subject: [PATCH] net: ipv6: support Application-aware IPv6 Network (APN6)
+Subject: [PATCH net-next] net: ipv6: support Application-aware IPv6 Network
+ (APN6)
 
 Feature proposal: support Application-aware IPv6 Network (APN6)
 
