@@ -1,0 +1,13 @@
+https://www.kernel.org/doc/html/latest/networking/netdev-FAQ.html#q-what-is-netdev
+
+all network-related Linux development (i.e. RFC, review, comments, etc.) takes place on netdev.
+
+There are always two trees (git repositories) in play. Both are driven by David Miller, the main network maintainer.
+
+the net tree is for fixes to existing code already in the mainline tree from Linus, and net-next is where the new code goes for the future release.
+
+At the beginning of the 2-week merge window, the net-next tree will be closed - no new changes/features. The accumulated new content of the past ~10 weeks will be passed onto mainline/Linus via a pull request for vX.Y – at the same time, the net tree will start accumulating fixes for this pulled content relating to vX.Y
+
+Shortly after the two weeks have passed (and vX.Y-rc1 is released), the tree for net-next reopens to collect content for the next (vX.Y+1) release.
+
+haha~You may also check the following website for the current status: http://vger.kernel.org/~davem/net-next.html
