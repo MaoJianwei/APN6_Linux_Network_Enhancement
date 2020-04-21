@@ -37,8 +37,8 @@ void main(void) {
 				0x00, 0x00, 0xaa, 0xaa,
 				0x00, 0x52, 0x27, 0x03,
 		};
-		int rettt = setsockopt(acceptSocket, IPPROTO_IPV6, IPV6_HOPOPTS, hbh, 16);
-		printf("Mao setsockopt %d %d", rettt, errno);
+		//int rettt = setsockopt(acceptSocket, IPPROTO_IPV6, IPV6_HOPOPTS, hbh, 16);
+		//printf("Mao setsockopt %d %d", rettt, errno);
 
 
 		struct timeval recvTimeout = {1,0};
