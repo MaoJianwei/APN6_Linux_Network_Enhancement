@@ -1,7 +1,7 @@
-From c0ec77c11244ab8bb5a177df6b298b881787b1d0 Mon Sep 17 00:00:00 2001
+From df7a1b11cbff19c5c86c183af18132d02a512797 Mon Sep 17 00:00:00 2001
 From: Jianwei Mao <mao-linux@maojianwei.com>
 Date: Sun, 19 Apr 2020 09:07:05 +0800
-Subject: [PATCH net-next] net: ipv6: support Application-aware IPv6 Network
+Subject: [PATCH net-next v2] net: ipv6: support Application-aware IPv6 Network
  (APN6)
 
 Feature proposal: support Application-aware IPv6 Network (APN6)
@@ -17,19 +17,21 @@ After that, network can provide specific performance for Apps, such as,
 low-lattency for online Games, low-jitter for industrial control,
 enough-bandwidth for video conference/remote medical system, etc.
 
-We made two changes:
+We made three changes:
 1. add IPV6_APN6 as an optname for IPPROTO_IPV6 level.
-2. add a function to generate IPv6 APN6 HBH header, and re-use
+2. add struct apn6_hopopt_hdr to represent APN6 HBH header
+3. add a function to generate IPv6 APN6 HBH header, and re-use
    IPV6_HOPOPTS procedure to set this header to socket opt.
 
 This feature is to support APN6 IETF Standard draft:
-https://datatracker.ietf.org/doc/draft-li-6man-app-aware-ipv6-network
+https://www.ietf.org/id/draft-li-6man-app-aware-ipv6-network-01.txt
 
 Signed-off-by: Jianwei Mao <mao-linux@maojianwei.com>
 ---
- include/uapi/linux/in6.h |  4 ++
- net/ipv6/ipv6_sockglue.c | 97 +++++++++++++++++++++++++++++++++-------
- 2 files changed, 86 insertions(+), 15 deletions(-)
+ include/uapi/linux/in6.h  |  4 +++
+ include/uapi/linux/ipv6.h | 14 ++++++++
+ net/ipv6/ipv6_sockglue.c  | 68 ++++++++++++++++++++++++++++++---------
+ 3 files changed, 71 insertions(+), 15 deletions(-)
 
 diff --git a/include/uapi/linux/in6.h b/include/uapi/linux/in6.h
 index 9f2273a08356..6601cad58415 100644
@@ -44,30 +46,46 @@ index 9f2273a08356..6601cad58415 100644
 +#define IPV6_APN6		81
 +
  #endif /* _UAPI_LINUX_IN6_H */
+diff --git a/include/uapi/linux/ipv6.h b/include/uapi/linux/ipv6.h
+index 13e8751bf24a..0002c1343ab5 100644
+--- a/include/uapi/linux/ipv6.h
++++ b/include/uapi/linux/ipv6.h
+@@ -70,6 +70,20 @@ struct ipv6_opt_hdr {
+ #define ipv6_destopt_hdr ipv6_opt_hdr
+ #define ipv6_hopopt_hdr  ipv6_opt_hdr
+ 
++/* Application-aware IPv6 Network(APN6)
++ * (draft-li-6man-app-aware-ipv6-network, RFC8200)
++ */
++struct apn6_hopopt_hdr {
++	struct ipv6_hopopt_hdr	hopopt_hdr;
++	__u8 		opt_type;
++	__u8 		opt_len;
++
++	__be32 		sla;
++	__be32 		app_id;
++	__be32 		user_id;
++};
++#define IPV6_HOPOPT_TYPE_APN6	3
++
+ /* Router Alert option values (RFC2711) */
+ #define IPV6_OPT_ROUTERALERT_MLD	0x0000	/* MLD(RFC2710) */
+ 
 diff --git a/net/ipv6/ipv6_sockglue.c b/net/ipv6/ipv6_sockglue.c
-index debdaeba5d8c..929cbaf27c27 100644
+index debdaeba5d8c..6049f0e2e6d4 100644
 --- a/net/ipv6/ipv6_sockglue.c
 +++ b/net/ipv6/ipv6_sockglue.c
-@@ -136,6 +136,59 @@ static bool setsockopt_needs_rtnl(int optname)
+@@ -136,6 +136,31 @@ static bool setsockopt_needs_rtnl(int optname)
  	return false;
  }
  
-+#define APN6_HBH_LEN 16
-+#define APN6_HBH_HDR_LEN 4
-+#define APN6_OPTION_TYPE 0x03
-+#define APN6_OPTION_LEN (APN6_HBH_LEN - APN6_HBH_HDR_LEN)
-+#define APN6_SLA_SIZE 4
-+#define APN6_APPID_SIZE 4
-+#define APN6_USERID_SIZE 4
 +/* Return APN6 Hop-by-Hop(HBH) extension header */
 +static void *generate_apn6_hopopts(char __user *optval, unsigned int optlen)
 +{
-+	unsigned char *hbh;
++	struct apn6_hopopt_hdr *apn6_hbh;
 +	unsigned int sla, app_id, user_id;
 +
-+	if (optlen < (sizeof(unsigned int) * 3))
-+		return NULL;
-+	else if (!optval)
++	if (optlen < (sizeof(unsigned int) * 3) || !optval)
 +		return NULL;
 +
 +	if (get_user(sla, ((unsigned int __user *)optval)) ||
@@ -75,40 +93,21 @@ index debdaeba5d8c..929cbaf27c27 100644
 +	    get_user(user_id, ((unsigned int __user *)optval) + 2))
 +		return ERR_PTR(-EFAULT);
 +
-+	pr_info("APN6: Get info: SLA:%08X AppID:%08X UserID:%08X",
-+		    sla, app_id, user_id);
++	apn6_hbh = kzalloc(sizeof(*apn6_hbh), GFP_KERNEL);
++	apn6_hbh->hopopt_hdr.hdrlen = (sizeof(*apn6_hbh) >> 3) - 1;
++	apn6_hbh->opt_type = IPV6_HOPOPT_TYPE_APN6;
++	apn6_hbh->opt_len = sizeof(*apn6_hbh) - 4;
++	apn6_hbh->sla = htonl(sla);
++	apn6_hbh->app_id = htonl(app_id);
++	apn6_hbh->user_id = htonl(user_id);
 +
-+	hbh = kzalloc(APN6_HBH_LEN, GFP_KERNEL);
-+	// hbh[0] is 0x0 now, and will be set natively when sending packets.
-+	hbh[1] = (APN6_HBH_LEN >> 3) - 1;
-+	hbh[2] = APN6_OPTION_TYPE;
-+	hbh[3] = APN6_OPTION_LEN;
-+
-+	sla = htonl(sla);
-+	app_id = htonl(app_id);
-+	user_id = htonl(user_id);
-+	memcpy(hbh + APN6_HBH_HDR_LEN, &sla, APN6_SLA_SIZE);
-+	memcpy(hbh + APN6_HBH_HDR_LEN + APN6_SLA_SIZE, &app_id, APN6_APPID_SIZE);
-+	memcpy(hbh + APN6_HBH_HDR_LEN + APN6_SLA_SIZE + APN6_APPID_SIZE,
-+	       &user_id, APN6_USERID_SIZE);
-+
-+	pr_info("APN6: Generate APN6 Hop-by-Hop extension header:\n"
-+			"%02X %02X %02X %02X\n"
-+			"%02X %02X %02X %02X\n"
-+			"%02X %02X %02X %02X\n"
-+			"%02X %02X %02X %02X",
-+			hbh[0], hbh[1], hbh[2], hbh[3],
-+			hbh[4], hbh[5], hbh[6], hbh[7],
-+			hbh[8], hbh[9], hbh[10], hbh[11],
-+			hbh[12], hbh[13], hbh[14], hbh[15]);
-+
-+	return hbh;
++	return apn6_hbh;
 +}
 +
  static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
  		    char __user *optval, unsigned int optlen)
  {
-@@ -400,34 +453,48 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
+@@ -400,34 +425,47 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
  	case IPV6_RTHDRDSTOPTS:
  	case IPV6_RTHDR:
  	case IPV6_DSTOPTS:
@@ -140,13 +139,12 @@ index debdaeba5d8c..929cbaf27c27 100644
 +			new = generate_apn6_hopopts(optval, optlen);
  			if (IS_ERR(new)) {
  				retv = PTR_ERR(new);
-+				pr_warn("APN6: Fail when generate HBH, %d", retv);
  				break;
  			}
 -			if (unlikely(ipv6_optlen(new) > optlen)) {
 -				kfree(new);
 +			// next steps are same as IPV6_HOPOPTS procedure,
-+			// so we can reuse it.
++			// so we reuse it.
 +			optname = IPV6_HOPOPTS;
 +		} else {
 +			/* remove any sticky options header with a zero option

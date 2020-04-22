@@ -70,6 +70,20 @@ struct ipv6_opt_hdr {
 #define ipv6_destopt_hdr ipv6_opt_hdr
 #define ipv6_hopopt_hdr  ipv6_opt_hdr
 
+/* Application-aware IPv6 Network(APN6)
+ * (draft-li-6man-app-aware-ipv6-network, RFC8200)
+ */
+struct apn6_hopopt_hdr {
+	struct ipv6_hopopt_hdr	hopopt_hdr;
+	__u8 		opt_type;
+	__u8 		opt_len;
+
+	__be32 		sla;
+	__be32 		app_id;
+	__be32 		user_id;
+};
+#define IPV6_HOPOPT_TYPE_APN6	3
+
 /* Router Alert option values (RFC2711) */
 #define IPV6_OPT_ROUTERALERT_MLD	0x0000	/* MLD(RFC2710) */
 

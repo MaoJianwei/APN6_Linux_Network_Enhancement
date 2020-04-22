@@ -136,22 +136,13 @@ static bool setsockopt_needs_rtnl(int optname)
 	return false;
 }
 
-#define APN6_HBH_LEN 16
-#define APN6_HBH_HDR_LEN 4
-#define APN6_OPTION_TYPE 0x03
-#define APN6_OPTION_LEN (APN6_HBH_LEN - APN6_HBH_HDR_LEN)
-#define APN6_SLA_SIZE 4
-#define APN6_APPID_SIZE 4
-#define APN6_USERID_SIZE 4
 /* Return APN6 Hop-by-Hop(HBH) extension header */
 static void *generate_apn6_hopopts(char __user *optval, unsigned int optlen)
 {
-	unsigned char *hbh;
+	struct apn6_hopopt_hdr *apn6_hbh;
 	unsigned int sla, app_id, user_id;
 
-	if (optlen < (sizeof(unsigned int) * 3))
-		return NULL;
-	else if (!optval)
+	if (optlen < (sizeof(unsigned int) * 3) || !optval)
 		return NULL;
 
 	if (get_user(sla, ((unsigned int __user *)optval)) ||
@@ -159,34 +150,15 @@ static void *generate_apn6_hopopts(char __user *optval, unsigned int optlen)
 	    get_user(user_id, ((unsigned int __user *)optval) + 2))
 		return ERR_PTR(-EFAULT);
 
-	pr_info("APN6: Get info: SLA:%08X AppID:%08X UserID:%08X",
-		    sla, app_id, user_id);
+	apn6_hbh = kzalloc(sizeof(*apn6_hbh), GFP_KERNEL);
+	apn6_hbh->hopopt_hdr.hdrlen = (sizeof(*apn6_hbh) >> 3) - 1;
+	apn6_hbh->opt_type = IPV6_HOPOPT_TYPE_APN6;
+	apn6_hbh->opt_len = sizeof(*apn6_hbh) - 4;
+	apn6_hbh->sla = htonl(sla);
+	apn6_hbh->app_id = htonl(app_id);
+	apn6_hbh->user_id = htonl(user_id);
 
-	hbh = kzalloc(APN6_HBH_LEN, GFP_KERNEL);
-	// hbh[0] is 0x0 now, and will be set natively when sending packets.
-	hbh[1] = (APN6_HBH_LEN >> 3) - 1;
-	hbh[2] = APN6_OPTION_TYPE;
-	hbh[3] = APN6_OPTION_LEN;
-
-	sla = htonl(sla);
-	app_id = htonl(app_id);
-	user_id = htonl(user_id);
-	memcpy(hbh + APN6_HBH_HDR_LEN, &sla, APN6_SLA_SIZE);
-	memcpy(hbh + APN6_HBH_HDR_LEN + APN6_SLA_SIZE, &app_id, APN6_APPID_SIZE);
-	memcpy(hbh + APN6_HBH_HDR_LEN + APN6_SLA_SIZE + APN6_APPID_SIZE,
-	       &user_id, APN6_USERID_SIZE);
-
-	pr_info("APN6: Generate APN6 Hop-by-Hop extension header:\n"
-			"%02X %02X %02X %02X\n"
-			"%02X %02X %02X %02X\n"
-			"%02X %02X %02X %02X\n"
-			"%02X %02X %02X %02X",
-			hbh[0], hbh[1], hbh[2], hbh[3],
-			hbh[4], hbh[5], hbh[6], hbh[7],
-			hbh[8], hbh[9], hbh[10], hbh[11],
-			hbh[12], hbh[13], hbh[14], hbh[15]);
-
-	return hbh;
+	return apn6_hbh;
 }
 
 static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
@@ -468,11 +440,10 @@ static int do_ipv6_setsockopt(struct sock *sk, int level, int optname,
 			new = generate_apn6_hopopts(optval, optlen);
 			if (IS_ERR(new)) {
 				retv = PTR_ERR(new);
-				pr_warn("APN6: Fail when generate HBH, %d", retv);
 				break;
 			}
 			// next steps are same as IPV6_HOPOPTS procedure,
-			// so we can reuse it.
+			// so we reuse it.
 			optname = IPV6_HOPOPTS;
 		} else {
 			/* remove any sticky options header with a zero option
