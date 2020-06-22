@@ -1,2 +1,3 @@
 # Mao_Linux_Network_Enhance
-Enhanse networking system of Linux Kernel
+
+Support APN6 in Linux kernel. Application-aware IPv6 Networking (APN6)
